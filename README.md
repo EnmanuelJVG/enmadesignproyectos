@@ -1,70 +1,76 @@
 # ENMA DESIGNS — Studio Manager
 
-Panel administrativo privado para gestionar clientes, marcas, proyectos, tareas, calendario y finanzas de Enma Designs. Esta versión elimina por completo la dependencia de Supabase.
+Panel administrativo para gestionar clientes, marcas, proyectos, tareas, calendario, finanzas e historial de correcciones de Enma Designs. Esta versión no utiliza Supabase y **no muestra una pantalla de contraseña**: abre directamente el panel.
 
-## Qué incluye esta versión
+## Qué incluye
 
-- Panel de resumen, clientes, marcas, proyectos, tareas, calendario y finanzas.
-- Historial de correcciones por proyecto: fecha, descripción del cambio y registro acumulado.
-- Exportación de la vista actual a CSV compatible con Excel, documento Word (.doc), PDF mediante impresión del navegador, imagen PNG y copia de texto.
-- Datos guardados en un archivo JSON dentro de un repositorio **privado** de GitHub.
-- Aplicación estática y API privada desplegadas en Vercel.
-- Contraseña de administrador validada en el servidor. El token de GitHub nunca se entrega al navegador.
+- Resumen del estudio, clientes, marcas, proyectos, tareas, calendario y finanzas.
+- Historial de correcciones por proyecto: fecha y descripción del trabajo realizado.
+- Exportación de la vista actual a CSV compatible con Excel, documento Word (.doc), PDF mediante impresión, imagen PNG y copia de texto.
+- Datos guardados en `data/enma-studio-data.json` dentro de tu repositorio privado de GitHub.
+- API en Vercel; el token de GitHub permanece en el servidor y no se envía al navegador.
 - Diseño adaptable a computadora y móvil. No se incluyen registros ficticios.
 
-## Arquitectura y una aclaración importante
+## IMPORTANTE: acceso sin contraseña
 
-GitHub guarda el archivo de datos y el código; Vercel publica la web y ejecuta la pequeña API (`/api/data`). No se utiliza Supabase ni hace falta contratar una base de datos adicional para este uso individual y de bajo volumen.
+Esta versión quita por completo el inicio de sesión. Por eso, **cualquier persona que conozca o encuentre la dirección pública de tu sitio de Vercel podrá abrir el panel y consultar, crear, modificar o borrar sus registros**. Que el repositorio de GitHub sea privado no vuelve privada la página publicada en Vercel.
 
-Esta solución está pensada para **un solo administrador y pocos cambios simultáneos**. Cada guardado actualiza un archivo JSON en GitHub. No es una base de datos multiusuario ni está diseñada para muchas personas editando al mismo tiempo. No guardes archivos grandes de diseño dentro del JSON; conserva los originales en tu almacenamiento habitual y registra sus enlaces en la ficha de marca/proyecto.
+El token de GitHub sigue protegido como variable de entorno del servidor; no aparece en el código del navegador. Sin embargo, la API permite operar los datos sin pedir contraseña. No guardes aquí datos personales delicados de clientes (por ejemplo, teléfonos, direcciones o información confidencial) mientras el sitio esté publicado sin protección. Para volver a tener privacidad, habría que activar una protección de acceso en Vercel o restaurar un mecanismo de inicio de sesión.
 
-## Configuración inicial (una sola vez)
+## Arquitectura
 
-### 1. Crear un repositorio privado en GitHub
+- **GitHub privado:** conserva el código y el archivo JSON con los datos.
+- **Vercel:** publica la web y ejecuta la API `api/data.js`.
+- **Supabase:** no se utiliza.
 
-1. En GitHub crea un repositorio nuevo, por ejemplo `enma-studio-manager`.
-2. Selecciona **Private** (privado).
-3. Sube el contenido de esta carpeta al nivel principal del repositorio: `index.html`, `api/`, `assets/`, etc.
+La solución está pensada para un solo administrador y un volumen pequeño de información. Cada guardado actualiza un único archivo JSON en GitHub; no está diseñada para varias personas editando simultáneamente. No guardes archivos grandes de diseño dentro del JSON: conserva los originales en tu almacenamiento habitual y registra sus enlaces en la ficha correspondiente.
 
-### 2. Crear un token de GitHub
+## Configuración en Vercel
 
-1. En GitHub abre **Settings → Developer settings → Personal access tokens → Fine-grained tokens**.
-2. Crea un token con acceso únicamente al repositorio privado que acabas de crear.
-3. En Repository permissions, concede **Contents: Read and write**. No necesita permisos de administración.
-4. Copia el token. GitHub solo lo muestra al crearlo.
-
-### 3. Conectar con Vercel
-
-1. En Vercel selecciona **Add New → Project** e importa el repositorio privado.
-2. Framework Preset: **Other**. No configures Build Command ni Output Directory; Vercel servirá `index.html` y reconocerá la función de `api/`.
-3. Antes de desplegar, abre **Environment Variables** y añade estas cuatro variables:
+En el proyecto de Vercel conectado a este repositorio, abre **Settings → Environment Variables** y configura estas tres variables para **Production**:
 
 | Variable | Valor |
 |---|---|
-| `GITHUB_TOKEN` | El token fine-grained que acabas de crear |
-| `GITHUB_OWNER` | Tu usuario u organización de GitHub (propietario del repositorio) |
-| `GITHUB_REPO` | Nombre exacto del repositorio, por ejemplo `enma-studio-manager` |
-| `ENMA_ADMIN_PASSWORD` | Una contraseña larga y exclusiva para entrar al panel |
+| `GITHUB_TOKEN` | Token fine-grained de GitHub con acceso únicamente a este repositorio y permiso **Contents: Read and write**. |
+| `GITHUB_OWNER` | `EnmanuelJVG` |
+| `GITHUB_REPO` | `enmadesignproyectos` |
 
-4. Guarda las variables y pulsa **Deploy**. Si cambias una variable más adelante, vuelve a desplegar para aplicar el cambio.
-5. Abre el dominio que te asigne Vercel. Ingresa con `ENMA_ADMIN_PASSWORD`.
+Ya **no hace falta** crear `ENMA_ADMIN_PASSWORD`. Si existe en Vercel de una configuración anterior, puedes eliminarla; esta versión no la utiliza.
 
-La primera conexión crea automáticamente `data/enma-studio-data.json` dentro del repositorio. Ese archivo contiene tus registros; por eso el repositorio debe permanecer privado. El token y la contraseña se configuran solo en Vercel, nunca en `index.html` ni en GitHub.
+Después de guardar o modificar variables, haz un nuevo **Redeploy** desde Vercel → Deployments. La primera conexión crea automáticamente `data/enma-studio-data.json` en el repositorio. Mantén el repositorio de GitHub en privado y no pongas el token en `index.html`, en archivos públicos ni en mensajes.
+
+### Crear o renovar el token de GitHub
+
+1. En GitHub abre **Settings → Developer settings → Personal access tokens → Fine-grained tokens**.
+2. Crea un token cuyo propietario sea `EnmanuelJVG`.
+3. En **Repository access**, selecciona únicamente `enmadesignproyectos`.
+4. En **Repository permissions**, asigna **Contents: Read and write**. `Metadata: Read-only` se agrega automáticamente.
+5. Crea el token y cópialo directamente a la variable `GITHUB_TOKEN` en Vercel. No lo compartas ni lo pegues en el código del sitio.
+
+## Actualizar el proyecto existente
+
+Para aplicar esta versión en un repositorio ya conectado a Vercel, reemplaza en GitHub los archivos del proyecto por los de este ZIP, respetando las rutas:
+
+- `index.html`
+- `api/data.js`
+- `README.md`
+
+No borres la carpeta `assets/` ni los archivos de identidad visual. Al confirmar los cambios en GitHub, Vercel iniciará un nuevo despliegue automáticamente si la integración está activa. Si no ocurre, ve a **Deployments** y pulsa **Redeploy**.
 
 ## Uso local
 
-La API necesita ejecutarse en Vercel porque utiliza variables privadas del servidor. Para probar el panel completo localmente, instala Vercel CLI, inicia sesión y ejecuta desde esta carpeta:
+La API necesita las variables de entorno del servidor. Para probar el panel completo localmente, instala Vercel CLI y ejecuta desde esta carpeta:
 
 ```bash
 npm i -g vercel
 vercel dev
 ```
 
-Configura las mismas cuatro variables en el entorno local de Vercel. No abras `index.html` con doble clic ni uses un servidor estático simple: las rutas `/api/data` no funcionarían.
+No abras `index.html` con doble clic ni uses un servidor estático simple: la ruta `/api/data` no funcionaría.
 
 ## Exportaciones
 
-Los botones de exportación trabajan con la sección que estás viendo:
+Los botones exportan los datos de la sección que estés viendo:
 
 - **Excel / CSV:** descarga un CSV que Excel puede abrir.
 - **Word:** descarga un documento `.doc` compatible con Word.
@@ -72,13 +78,8 @@ Los botones de exportación trabajan con la sección que estás viendo:
 - **Imagen:** genera un PNG de la vista actual.
 - **Copiar texto:** copia los datos tabulados para pegarlos en otra aplicación.
 
-## Copias de seguridad
+## Copias de seguridad y límites
 
-El historial de cambios del repositorio GitHub conserva versiones anteriores del archivo `data/enma-studio-data.json`. También puedes descargar ese archivo desde GitHub como respaldo. No borres ni hagas público el repositorio.
+El historial de cambios del repositorio conserva versiones anteriores de `data/enma-studio-data.json`. También puedes descargar ese archivo desde GitHub como respaldo. No hagas público el repositorio.
 
-## Límites conocidos
-
-- La persistencia está diseñada para un administrador y un volumen pequeño de datos. Si en el futuro necesitas varios usuarios, archivos adjuntos, permisos por rol, búsquedas complejas o ediciones simultáneas, conviene migrar a una base de datos administrada (por ejemplo Neon o Turso), sin necesidad de Supabase.
-- Los enlaces de logotipos/manuales se guardan como texto en la ficha de marca. Esta versión no sube archivos al servidor.
-- La exportación PDF utiliza el diálogo de impresión del navegador; la apariencia final depende de sus opciones de impresión.
-- La contraseña se valida en cada solicitud al servidor y se conserva durante la sesión de la pestaña. Usa una contraseña única y no la compartas.
+Los enlaces de logotipos y manuales se guardan como texto; esta versión no sube archivos adjuntos. La exportación PDF usa el diálogo de impresión del navegador. Si en el futuro necesitas varios usuarios, privacidad real en el panel, archivos adjuntos o ediciones simultáneas, habrá que incorporar control de acceso y/o una base de datos adecuada.

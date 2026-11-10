@@ -1,9 +1,9 @@
 const API = 'https://api.github.com';
 const path = 'data/enma-studio-data.json';
 function config() {
-  const { GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO, ENMA_ADMIN_PASSWORD } = process.env;
-  if (!GITHUB_TOKEN || !GITHUB_OWNER || !GITHUB_REPO || !ENMA_ADMIN_PASSWORD) throw new Error('Faltan variables de entorno en Vercel. Revisa la guía README.');
-  return { token: GITHUB_TOKEN, owner: GITHUB_OWNER, repo: GITHUB_REPO, password: ENMA_ADMIN_PASSWORD };
+  const { GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO } = process.env;
+  if (!GITHUB_TOKEN || !GITHUB_OWNER || !GITHUB_REPO) throw new Error('Faltan variables de entorno en Vercel: GITHUB_TOKEN, GITHUB_OWNER y GITHUB_REPO.');
+  return { token: GITHUB_TOKEN, owner: GITHUB_OWNER, repo: GITHUB_REPO };
 }
 async function gh(c, method, url, body) {
   const r = await fetch(`${API}${url}`, { method, headers: { Authorization: `Bearer ${c.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
@@ -26,7 +26,6 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
   let c;
   try { c = config(); } catch (e) { return res.status(500).json({ error: e.message }); }
-  if (req.headers['x-enma-password'] !== c.password) return res.status(401).json({ error: 'Contraseña incorrecta o sesión vencida.' });
   try {
     const current = await read(c);
     if (req.method === 'GET') {
@@ -52,6 +51,10 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Método no permitido.' });
   } catch (e) {
     console.error('ENMA data API:', e);
-    return res.status(e.status === 409 || e.status === 422 ? 409 : 502).json({ error: e.status === 409 || e.status === 422 ? 'Los datos cambiaron en otro dispositivo. Actualiza la aplicación e inténtalo de nuevo.' : 'No se pudo guardar o leer el archivo de datos en GitHub. Verifica el token y los permisos del repositorio.' });
+    if (e.status === 401) return res.status(502).json({ error: 'GitHub rechazó el token. Comprueba que GITHUB_TOKEN sea válido y no esté vencido.' });
+    if (e.status === 403) return res.status(502).json({ error: 'GitHub no permite esta operación. Revisa que el token tenga Contents: Read and write para este repositorio.' });
+    if (e.status === 404) return res.status(502).json({ error: 'GitHub no encuentra el repositorio. Comprueba GITHUB_OWNER, GITHUB_REPO y que el token tenga acceso al repositorio privado.' });
+    if (e.status === 409 || e.status === 422) return res.status(409).json({ error: 'Los datos cambiaron en otro dispositivo o GitHub rechazó la actualización. Actualiza la aplicación e inténtalo de nuevo.' });
+    return res.status(502).json({ error: `No se pudo guardar o leer el archivo de datos en GitHub (HTTP ${e.status || 'desconocido'}). Revisa el token y la configuración del repositorio.` });
   }
 };
