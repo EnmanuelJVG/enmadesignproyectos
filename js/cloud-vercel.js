@@ -65,10 +65,20 @@ window.CloudVercel = (() => {
     let polling = false;
     let currentCursor = cursor || null;
     let timer = null;
+    let failures = 0;
+
+    const queuePoll = ms => {
+      if (stopped) return;
+      clearTimeout(timer);
+      timer = setTimeout(poll, ms);
+    };
 
     const poll = async () => {
-      if (stopped || polling || !activeUser || !navigator.onLine) return;
+      if (stopped) return;
+      if (polling) { queuePoll(1500); return; }
+      if (!activeUser || !navigator.onLine) { queuePoll(12000); return; }
       polling = true;
+      let nextDelay = 7000;
       try {
         let since = 0;
         if (Array.isArray(currentCursor) && currentCursor.length >= 2) {
@@ -77,17 +87,20 @@ window.CloudVercel = (() => {
         const response = await request('/api/cloud/records?since=' + encodeURIComponent(String(since)), { method: 'GET' });
         const data = await response.json();
         if (data.cursor) currentCursor = data.cursor;
+        failures = 0;
         if (!stopped) onDocs(Array.isArray(data.records) ? data.records : [], data.cursor || null, false);
       } catch (error) {
+        failures++;
+        nextDelay = Math.min(60000, 7000 * Math.pow(2, Math.min(failures - 1, 3)));
         if (!stopped && onErr) onErr(error);
       } finally {
         polling = false;
+        queuePoll(nextDelay);
       }
     };
 
     poll();
-    timer = setInterval(poll, 7000);
-    return () => { stopped = true; if (timer) clearInterval(timer); };
+    return () => { stopped = true; if (timer) clearTimeout(timer); };
   }
 
   async function putRecords(items) {

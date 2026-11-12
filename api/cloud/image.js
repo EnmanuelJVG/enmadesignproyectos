@@ -61,11 +61,22 @@ export default async function handler(req, res) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     return res.end(Buffer.from(await new Response(file.stream).arrayBuffer()));
   } catch (error) {
-    console.error('ENMA cloud image:', error);
-    return json(res, error.statusCode || 500, {
-      error: error.statusCode === 413
-        ? error.message
-        : 'No se pudo procesar la imagen en Vercel Blob.'
+    console.error('ENMA cloud image:', {
+      name: error?.name,
+      code: error?.code,
+      status: error?.status || error?.statusCode,
+      message: error?.message
+    });
+    const status = Number(error?.status || error?.statusCode || 500);
+    const rawCode = String(error?.code || error?.name || 'blob_image_error');
+    const safeCode = rawCode.replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 48) || 'blob_image_error';
+    return json(res, status === 413 ? 413 : 500, {
+      error: status === 413
+        ? 'La imagen supera el límite permitido de 3 MB.'
+        : `No se pudo procesar la imagen en Vercel Blob (${safeCode}${status ? ` · HTTP ${status}` : ''}). Comprueba la conexión privada del almacenamiento.`,
+      code: status === 413 ? 'image_too_large' : 'blob_image_error',
+      blobCode: safeCode,
+      blobStatus: status
     });
   }
 }

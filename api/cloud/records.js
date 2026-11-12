@@ -118,8 +118,27 @@ export default async function handler(req, res) {
       cursor: max
     });
   } catch (error) {
-    console.error('ENMA cloud records:', error);
-    return json(res, 500, { error: 'No se pudieron guardar o leer los registros de la nube. Revisa la conexión de Vercel Blob.' });
+    // El detalle completo queda solo en los Logs privados de Vercel. La respuesta
+    // al administrador incluye un código seguro para poder diagnosticar el fallo.
+    console.error('ENMA cloud records:', {
+      name: error?.name,
+      code: error?.code,
+      status: error?.status || error?.statusCode,
+      message: error?.message
+    });
+    const blobStatus = Number(error?.status || error?.statusCode || 0) || null;
+    const rawCode = String(error?.code || error?.name || 'blob_error');
+    const safeCode = rawCode.replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 48) || 'blob_error';
+    let hint = 'Comprueba que el Blob privado esté vinculado a este proyecto y entorno Production.';
+    if (blobStatus === 401 || blobStatus === 403) hint = 'Vercel rechazó la credencial OIDC/token. Comprueba la conexión del Blob en Storage → Projects y vuelve a publicar.';
+    else if (blobStatus === 429) hint = 'Vercel aplicó un límite temporal. La aplicación volverá a intentarlo automáticamente.';
+    else if (blobStatus === 409 || blobStatus === 412) hint = 'Hubo un conflicto de guardado entre dispositivos. La aplicación volverá a combinar los cambios.';
+    return json(res, 500, {
+      error: `No se pudo acceder a Vercel Blob (${safeCode}${blobStatus ? ` · HTTP ${blobStatus}` : ''}). ${hint}`,
+      code: 'blob_error',
+      blobCode: safeCode,
+      blobStatus
+    });
   }
 }
 

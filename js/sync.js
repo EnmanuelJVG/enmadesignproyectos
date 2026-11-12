@@ -14,6 +14,7 @@ window.Sync = (() => {
   const fresh = () => ({ v: 1, uid: null, cursor: null, rec: {}, imgs: {}, imgDel: [] });
 
   let meta = null, user = null, unsub = null, busy = false, again = false, tPush = null, tMeta = null;
+  let tRetry = null, autoTimer = null, retryAttempt = 0, writeBlocked = false;
   let repush = false, massUntil = 0, prefetching = false, adapterReady = false, adapterTrying = false, guardCount = 0, listenDead = false, hiddenAt = 0, chain = Promise.resolve();
   const st = { state: 'off', msg: '', last: null, pending: 0, email: '' };
   const subs = new Set();
@@ -154,12 +155,36 @@ window.Sync = (() => {
     }
   }
   function friendlyErr(e) { return cloud() && cloud().friendly ? cloud().friendly(e) : { offline: false, msg: String((e && e.message) || e) }; }
-  function handleErr(e) {
+  function scheduleRetry() {
+    if (!user || tRetry) return; // los errores de lectura no deben aplazar una subida ya programada
+    const delay = Math.min(60000, 10000 * Math.pow(2, Math.min(retryAttempt, 3)));
+    retryAttempt++;
+    tRetry = setTimeout(() => {
+      tRetry = null;
+      if (user && navigator.onLine) {
+        restartListen();
+        syncNow(false);
+      }
+    }, delay);
+  }
+  function clearRetry() {
+    clearTimeout(tRetry);
+    tRetry = null;
+    retryAttempt = 0;
+  }
+  function startAutoSync() {
+    clearInterval(autoTimer);
+    autoTimer = setInterval(() => {
+      if (user && navigator.onLine && document.visibilityState !== 'hidden') syncNow(false);
+    }, 20000);
+  }
+  function handleErr(e, isWriteFailure = false) {
     console.warn('Sync:', e);
+    if (isWriteFailure) writeBlocked = true;
     const f = friendlyErr(e);
     listenDead = true;
     setStatus(f.offline ? 'offline' : 'error', f.msg);
-    if (!f.offline && !f.fatal && user) schedule(60000);      // reintenta solo (los errores de permisos no se reintentan)
+    if (!f.offline && !f.fatal) scheduleRetry();
   }
   async function syncNow(manual) {
     if (!user || !meta || !cloud()) return;
@@ -173,9 +198,11 @@ window.Sync = (() => {
       await pushImages();      // primero las imágenes, para que otro dispositivo las encuentre cuando llegue el registro
       await pushDirty();
       persistMeta();
+      clearRetry();
+      writeBlocked = false;
       st.last = Date.now(); setStatus('ok', '');
       if (manual || listenDead) restartListen();
-    } catch (e) { handleErr(e); }
+    } catch (e) { handleErr(e, true); }
     finally { busy = false; if (again) { again = false; schedule(500); } }
   }
   const schedule = ms => { clearTimeout(tPush); tPush = setTimeout(() => syncNow(false), ms); };
@@ -190,7 +217,11 @@ window.Sync = (() => {
       persistMeta();
       if (changed) { await flush(); if (api.onRemote) api.onRemote(); prefetchImages(); }
       if (n > 0 || repush) { repush = false; schedule(200); }
-      if (!fromCache) { st.last = Date.now(); if (st.state !== 'syncing' && st.state !== 'guard') setStatus('ok', ''); }
+      if (!fromCache) {
+        st.last = Date.now();
+        // Una lectura correcta no debe ocultar una escritura que sigue pendiente.
+        if (!writeBlocked && st.state !== 'syncing' && st.state !== 'guard') setStatus('ok', '');
+      }
     } catch (e) { console.error(e); setStatus('error', 'No se pudo aplicar un cambio que llegó de la nube.'); }
   }
   function startListen() {
@@ -208,10 +239,13 @@ window.Sync = (() => {
     meta.uid = u.uid; user = u;
     setStatus('connecting', '');
     startListen();
+    startAutoSync();
     schedule(300);
   }
   function stop() {
-    stopListen(); user = null; clearTimeout(tPush);
+    stopListen(); user = null;
+    clearTimeout(tPush); clearTimeout(tRetry); clearInterval(autoTimer);
+    tPush = null; tRetry = null; autoTimer = null; retryAttempt = 0; writeBlocked = false;
     setStatus(cloud() && cloud().isConfigured() ? 'signedout' : 'off', '');
   }
 
@@ -259,12 +293,21 @@ window.Sync = (() => {
     window.addEventListener('online', () => { if (user) { restartListen(); schedule(400); } else initAdapter(); });
     window.addEventListener('offline', () => { if (user) setStatus('offline', 'Sin conexión. Tus cambios se guardan aquí y se subirán después.'); });
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        persistMeta(true);
+        // Intenta vaciar los cambios pendientes antes de que el móvil suspenda la pestaña.
+        if (user && navigator.onLine) syncNow(false);
+        return;
+      }
       if (!user) return;
       if (hiddenAt && Date.now() - hiddenAt > 30000) restartListen();   // el sistema pudo cortar la conexión mientras estaba en segundo plano
       schedule(300);
     });
-    window.addEventListener('pagehide', () => persistMeta(true));
+    window.addEventListener('pagehide', () => {
+      persistMeta(true);
+      if (user && navigator.onLine) syncNow(false);
+    });
   }
 
   /* ---------- API pública ---------- */

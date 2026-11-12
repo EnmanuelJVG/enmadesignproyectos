@@ -152,7 +152,7 @@ function syncCardInner() {
   const err = (st.state === 'error' || st.state === 'offline') && st.msg ? `<p class="sync-err${st.state === 'offline' ? ' off' : ''}" role="alert">${esc(st.msg)}</p>` : '';
   const det = [st.last ? 'Última sincronización: ' + agoText(st.last) + '.' : '', st.pending ? st.pending + (st.pending === 1 ? ' cambio' : ' cambios') + ' por subir.' : ''].filter(Boolean).join(' ');
   return `<div class="card-h"><h2>Nube</h2><span class="sync-state s-${st.state}"><i></i>${SYNC_TXT[st.state] || ''}</span></div>
-    <p class="prose">Conectado como <b>${esc(u.email)}</b>. Tus cambios se guardan aquí primero y se copian a la nube; lo que cambies en otro dispositivo llega solo.</p>
+    <p class="prose">Conectado como <b>${esc(u.email)}</b>. Tus cambios se guardan primero en este dispositivo y se envían a la nube automáticamente al guardar. Mientras la app esté abierta, también se revisan y reintentan cada 20 segundos; lo que cambies en otro dispositivo llega solo.</p>
     ${det ? `<p class="muted tiny">${esc(det)}</p>` : ''}${err}${guard}
     <div class="bar-act"><button class="btn ghost" data-act="syncNow">${ic('refresh')} Sincronizar ahora</button><button class="btn ghost" data-act="syncLogout">Cerrar sesión</button></div>`;
 }
