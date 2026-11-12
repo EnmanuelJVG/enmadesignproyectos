@@ -1,5 +1,5 @@
 /* Service worker: guarda la app para abrirla sin internet. Si cambias archivos, sube el número de VERSION. */
-const VERSION = 'enma-studio-v4-autosync-blob-261';
+const VERSION = 'enma-studio-v5-etag-retry';
 const CORE = ['./', 'index.html', 'css/styles.css', 'js/core.js', 'js/ui.js', 'js/views.js', 'js/views2.js', 'js/forms.js', 'js/cloud-vercel.js', 'js/sync.js', 'js/app.js',
   'manifest.webmanifest', 'assets/isotipo-blanco.png', 'assets/isotipo-negro.png', 'assets/logo-blanco.png', 'assets/logo-negro.png',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/favicon-32.png', 'icons/apple-touch-icon.png'];

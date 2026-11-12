@@ -4,7 +4,11 @@ import { json, rejectCrossOrigin, requireAuth } from '../../lib/server-auth.js';
 const INDEX_PATH = 'enma-studio/records/index.json';
 const ALLOWED = new Set(['clients', 'jobs', 'revisions', 'payments', 'expenses', 'events']);
 const MAX_ITEMS = 30;
-const MAX_INDEX_RETRIES = 5;
+const MAX_INDEX_RETRIES = 8;
+
+// Serializa las escrituras que coinciden en la misma instancia de Vercel.
+// Las instancias distintas siguen protegidas por ETag + reintentos con jitter.
+let writeQueue = Promise.resolve();
 
 async function readIndex() {
   const file = await get(INDEX_PATH, { access: 'private', useCache: false });
@@ -33,6 +37,13 @@ function isWriteConflict(error) {
   const status = Number(error?.status || error?.statusCode || 0);
   return name.includes('Precondition') || name.includes('AlreadyExists') ||
     code.includes('precondition') || code.includes('already_exists') || status === 409 || status === 412;
+}
+
+async function waitBeforeRetry(attempt) {
+  // Jitter exponencial: evita que dos dispositivos vuelvan a competir al mismo tiempo.
+  const ceiling = Math.min(650, 80 * (2 ** attempt));
+  const delay = 50 + Math.floor(Math.random() * ceiling);
+  await new Promise(resolve => setTimeout(resolve, delay));
 }
 
 async function mergeItems(items) {
@@ -77,10 +88,17 @@ async function mergeItems(items) {
     } catch (error) {
       if (!isWriteConflict(error) || attempt === MAX_INDEX_RETRIES - 1) throw error;
       // Otro dispositivo guardó primero. Se vuelve a leer y fusionar sin pisar esa versión.
-      await new Promise(resolve => setTimeout(resolve, 40 * (attempt + 1)));
+      await waitBeforeRetry(attempt);
     }
   }
   throw new Error('No se pudo resolver el conflicto de guardado.');
+}
+
+function queueMergeItems(items) {
+  const task = writeQueue.then(() => mergeItems(items));
+  // Un fallo no debe envenenar la cola: la siguiente petición debe poder continuar.
+  writeQueue = task.catch(() => {});
+  return task;
 }
 
 export default async function handler(req, res) {
@@ -98,7 +116,7 @@ export default async function handler(req, res) {
       if (!Array.isArray(items) || items.length < 1 || items.length > MAX_ITEMS || !items.every(validItem)) {
         return json(res, 400, { error: `El lote debe contener entre 1 y ${MAX_ITEMS} registros válidos.` });
       }
-      const result = await mergeItems(items);
+      const result = await queueMergeItems(items);
       return json(res, 200, result);
     }
 
@@ -120,19 +138,32 @@ export default async function handler(req, res) {
   } catch (error) {
     // El detalle completo queda solo en los Logs privados de Vercel. La respuesta
     // al administrador incluye un código seguro para poder diagnosticar el fallo.
+    const conflict = isWriteConflict(error);
+    const blobStatus = Number(error?.status || error?.statusCode || 0) || null;
+    if (conflict) {
+      console.warn('ENMA cloud records: conflicto ETag después de reintentos', {
+        name: error?.name,
+        code: error?.code,
+        status: blobStatus,
+        attempts: MAX_INDEX_RETRIES
+      });
+      return json(res, 409, {
+        error: 'Otro dispositivo modificó los datos al mismo tiempo. Tus cambios siguen guardados en este dispositivo; ENMA volverá a intentarlo automáticamente.',
+        code: 'write_conflict',
+        retryAfterMs: 1800
+      });
+    }
     console.error('ENMA cloud records:', {
       name: error?.name,
       code: error?.code,
-      status: error?.status || error?.statusCode,
+      status: blobStatus,
       message: error?.message
     });
-    const blobStatus = Number(error?.status || error?.statusCode || 0) || null;
     const rawCode = String(error?.code || error?.name || 'blob_error');
     const safeCode = rawCode.replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 48) || 'blob_error';
     let hint = 'Comprueba que el Blob privado esté vinculado a este proyecto y entorno Production.';
     if (blobStatus === 401 || blobStatus === 403) hint = 'Vercel rechazó la credencial OIDC/token. Comprueba la conexión del Blob en Storage → Projects y vuelve a publicar.';
     else if (blobStatus === 429) hint = 'Vercel aplicó un límite temporal. La aplicación volverá a intentarlo automáticamente.';
-    else if (blobStatus === 409 || blobStatus === 412) hint = 'Hubo un conflicto de guardado entre dispositivos. La aplicación volverá a combinar los cambios.';
     return json(res, 500, {
       error: `No se pudo acceder a Vercel Blob (${safeCode}${blobStatus ? ` · HTTP ${blobStatus}` : ''}). ${hint}`,
       code: 'blob_error',

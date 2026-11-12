@@ -145,6 +145,9 @@ window.CloudVercel = (() => {
     if (status === 403) return { msg: 'Vercel rechazó la solicitud por seguridad. Abre de nuevo la aplicación desde su dominio de Vercel.', fatal: true };
     if (status === 503 || error?.code === 'not_configured') return { msg: error.message || 'Falta configurar Vercel Blob y las variables privadas. Sigue el README.', fatal: true };
     if (status === 413) return { msg: 'La imagen supera el tamaño permitido. Vuelve a cargarla para que la app la comprima.', fatal: true };
+    if (status === 409 || error?.code === 'write_conflict') {
+      return { msg: error?.message || 'Otro dispositivo guardó al mismo tiempo. Tus cambios siguen en este dispositivo y ENMA volverá a intentarlo automáticamente.' };
+    }
     if (status === 429) return { msg: 'Se alcanzó un límite temporal de Vercel. La app volverá a intentarlo.' };
     return { msg: error?.message || 'No se pudo sincronizar con Vercel.' };
   }
