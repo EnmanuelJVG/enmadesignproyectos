@@ -258,7 +258,7 @@ async function saveImage(file, { max = 1600, alpha = false } = {}) {
   catch (e) {
     bmp = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('No se pudo leer la imagen.')); i.src = URL.createObjectURL(file); });
   }
-  /* Se reduce hasta que pese menos de 600 KB, para que quepa en la nube y no llene tu dispositivo. */
+  /* Se optimiza hasta 600 KB para acelerar la carga en móvil y la sincronización de imágenes. */
   const w0 = bmp.width, h0 = bmp.height;
   const toBlob = (c, type, q) => new Promise(r => c.toBlob(r, type, q));
   let blob = null;

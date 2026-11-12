@@ -234,7 +234,7 @@ function syncLogin(f) {
   const btn = f.querySelector('button'), err = $('#sync-login-err'), old = btn.innerHTML;
   btn.disabled = true; btn.textContent = 'Entrando…'; if (err) err.textContent = '';
   Sync.signIn(email, pw).then(() => toast('Sesión iniciada. Sincronizando…', { type: 'ok' })).catch(e => {
-    const m = e && e.code ? CloudFirebase.friendly(e).msg : ((e && e.message) || 'No se pudo iniciar sesión.');
+    const m = CloudVercel.friendly(e).msg || 'No se pudo iniciar sesión.';
     const el = $('#sync-login-err'); if (el) el.textContent = m;
     btn.disabled = false; btn.innerHTML = old;
   });

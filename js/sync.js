@@ -2,7 +2,7 @@
    La app siempre guarda primero en tu dispositivo (funciona sin internet). Este módulo compara cada registro con lo
    último que se sincronizó y sube solo lo que cambió. Si dos dispositivos editan lo mismo, gana el cambio más reciente.
    Los borrados viajan como "lápidas" para que desaparezcan también en tus otros dispositivos.
-   No sabe nada de Firebase: habla con un adaptador (js/cloud-firebase.js). */
+   La persistencia remota vive en Vercel Blob: este módulo habla con js/cloud-vercel.js. */
 'use strict';
 
 window.Sync = (() => {
@@ -10,7 +10,7 @@ window.Sync = (() => {
   const SKEYS = ['nombre', 'tasa', 'tasaFecha', 'catTrabajo', 'catGasto'];   // lo demás de Ajustes es de cada dispositivo (tema, último respaldo)
   const IMG_FIELDS = { clients: r => [r.logoId, ...(r.refs || [])], jobs: r => [r.portadaId], revisions: r => [r.imgId, r.entregaImgId] };
   const imgIdsOf = (col, r) => (IMG_FIELDS[col] ? IMG_FIELDS[col](r) : []).filter(Boolean);
-  const cloud = () => window.CloudFirebase;
+  const cloud = () => window.CloudVercel;
   const fresh = () => ({ v: 1, uid: null, cursor: null, rec: {}, imgs: {}, imgDel: [] });
 
   let meta = null, user = null, unsub = null, busy = false, again = false, tPush = null, tMeta = null;
@@ -114,15 +114,15 @@ window.Sync = (() => {
       if (!m.del && !cur.has(key)) continue;
       items.push({ key, col, id, u: m.u, del: !!m.del, data: m.del ? '' : JSON.stringify(cur.get(key)) });
     }
-    for (let i = 0; i < items.length; i += 300) {
-      const chunk = items.slice(i, i + 300);
+    for (let i = 0; i < items.length; i += 30) {
+      const chunk = items.slice(i, i + 30);
       await withTimeout(cloud().putRecords(chunk), 30000);
       chunk.forEach(it => { const m = meta.rec[it.key]; if (m && m.u === it.u) delete m.dirty; });   // si cambió mientras subía, sigue pendiente
       persistMeta();
     }
   }
-  /* Firestore guarda cada documento de hasta 1 MiB; una imagen en base64 ocupa 4/3 de su tamaño. */
-  const CLOUD_IMG_MAX = 700 * 1024;
+  /* Las imágenes se guardan como archivos privados en Vercel Blob, no dentro de documentos JSON. */
+  const CLOUD_IMG_MAX = 2500 * 1024;
   async function shrinkBlob(blob) {
     try {
       const bmp = await createImageBitmap(blob), toBlob = (c, t, q) => new Promise(r => c.toBlob(r, t, q));
@@ -180,7 +180,7 @@ window.Sync = (() => {
   }
   const schedule = ms => { clearTimeout(tPush); tPush = setTimeout(() => syncNow(false), ms); };
 
-  /* ---------- escuchar la nube ---------- */
+  /* ---------- consultar periódicamente los cambios de Vercel ---------- */
   async function onDocs(list, max, fromCache) {
     try {
       const n = scan();                                  // primero lo local, para no pisar ediciones sin sincronizar
@@ -284,7 +284,7 @@ window.Sync = (() => {
     },
     async signIn(email, pw) {
       if (!meta) throw new Error('Este navegador no permite guardar datos aquí, así que la nube no se puede activar.');
-      await initAdapter(); if (!adapterReady) throw new Error('No se pudo cargar Firebase. Revisa tu conexión a internet.');
+      await initAdapter(); if (!adapterReady) throw new Error('No se pudo cargar la conexión con Vercel. Revisa tu conexión a internet y la configuración del proyecto.');
       await cloud().signIn(email, pw);
     },
     async signOut() { if (cloud()) await cloud().signOut(); },

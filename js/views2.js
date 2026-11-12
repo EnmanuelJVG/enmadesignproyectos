@@ -139,7 +139,7 @@ function syncCardInner() {
   if (!u) {
     const msg = st.state === 'error' || st.state === 'offline' ? `<p class="sync-err" role="alert">${esc(st.msg)}</p>` : '';
     return `<div class="card-h"><h2>Nube</h2><span class="sync-state s-${st.state}"><i></i>${SYNC_TXT[st.state] || ''}</span></div>
-      <p class="prose">Inicia sesión con el correo y la contraseña que creaste en Firebase. Hazlo una vez en cada dispositivo y tus cambios aparecerán en todos.</p>
+      <p class="prose">Inicia sesión con el correo y la contraseña que configuraste en Vercel. Usa la misma cuenta en tu celular y en tu computadora para compartir tus datos.</p>
       <form class="sync-form" data-submit="syncLogin" autocomplete="on">
         <label class="fld"><span>Correo</span><input name="email" type="email" inputmode="email" autocomplete="username" autocapitalize="off" spellcheck="false" required></label>
         <label class="fld"><span>Contraseña</span><input name="pw" type="password" autocomplete="current-password" required></label>
