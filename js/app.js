@@ -243,7 +243,15 @@ function syncLogin(f) {
 /* ---------- Instalación y funcionamiento sin internet ---------- */
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.__installEvt = e; if (parseRoute().name === 'ajustes') rerender(); });
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  window.addEventListener('load', async () => {
+    try {
+      const registration = await navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' });
+      // Fuerza una comprobación al abrir ENMA desde Safari o desde el icono del iPhone.
+      await registration.update().catch(() => {});
+    } catch (error) {
+      console.warn('ENMA: no se pudo actualizar el modo sin conexión:', error);
+    }
+  });
 }
 
 /* ---------- Arranque ---------- */

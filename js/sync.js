@@ -186,8 +186,7 @@ window.Sync = (() => {
     setStatus(f.offline ? 'offline' : 'error', f.msg);
     if (!f.offline && !f.fatal) scheduleRetry();
   }
-  async function syncNow(manual) {
-    if (!user || !meta || !cloud()) return;
+  async function performSync(manual) {
     if (busy) { again = true; return; }
     if (!navigator.onLine) { setStatus('offline', 'Sin conexión. Se subirá cuando vuelvas a tener internet.'); return; }
     busy = true;
@@ -203,7 +202,35 @@ window.Sync = (() => {
       st.last = Date.now(); setStatus('ok', '');
       if (manual || listenDead) restartListen();
     } catch (e) { handleErr(e, true); }
-    finally { busy = false; if (again) { again = false; schedule(500); } }
+    finally { busy = false; if (again) { again = false; schedule(900); } }
+  }
+
+  /*
+   * Web Locks coordina Safari y la app instalada cuando ambos contextos del
+   * mismo origen están abiertos. El bloqueo dura toda la sincronización, no
+   * solo el POST, para evitar que dos copias del iPhone compitan por el mismo
+   * índice de Blob. Si el navegador no ofrece Web Locks, se conserva el
+   * bloqueo local `busy` como alternativa.
+   */
+  async function syncNow(manual) {
+    if (!user || !meta || !cloud()) return;
+    if (busy) { again = true; return; }
+    if (!navigator.onLine) { setStatus('offline', 'Sin conexión. Se subirá cuando vuelvas a tener internet.'); return; }
+    if (!navigator.locks || typeof navigator.locks.request !== 'function') {
+      return performSync(manual);
+    }
+    let acquired = false;
+    try {
+      await navigator.locks.request('enma-studio-cloud-sync', { mode: 'exclusive', ifAvailable: true }, async lock => {
+        if (!lock) return;
+        acquired = true;
+        await performSync(manual);
+      });
+      if (!acquired && user && navigator.onLine) schedule(1600);
+    } catch (error) {
+      console.warn('ENMA Web Lock no disponible; se usa bloqueo local:', error);
+      await performSync(manual);
+    }
   }
   const schedule = ms => { clearTimeout(tPush); tPush = setTimeout(() => syncNow(false), ms); };
 
