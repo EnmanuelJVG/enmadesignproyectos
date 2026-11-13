@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
 <meta name="apple-mobile-web-app-title" content="ENMA Studio">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/favicon.ico" sizes="any">
@@ -26,6 +27,7 @@
 
 <aside class="side" aria-label="Menú principal">
   <a class="brand" href="#/hoy" aria-label="ENMA Design, ir al inicio"><img src="assets/logo-blanco.png" alt="Enma Design"></a>
+  <button type="button" class="nav-i nav-search" data-act="palette" aria-label="Buscar o crear (Ctrl K)"><span data-ic="search"></span>Buscar<kbd>Ctrl K</kbd></button>
   <a class="nav-i" data-nav="hoy" href="#/hoy"><span data-ic="home"></span>Hoy</a>
   <a class="nav-i" data-nav="clientes" href="#/clientes"><span data-ic="users"></span>Clientes</a>
   <a class="nav-i" data-nav="trabajos" href="#/trabajos"><span data-ic="briefcase"></span>Trabajos</a>
@@ -40,6 +42,7 @@
 <header class="top">
   <a class="top-brand" href="#/hoy" aria-label="Ir al inicio"><img class="lg-light" src="assets/isotipo-negro.png" alt="Enma Design"><img class="lg-dark" src="assets/isotipo-blanco.png" alt=""></a>
   <nav class="top-act" aria-label="Más secciones">
+    <button type="button" class="top-search" data-act="palette" aria-label="Buscar o crear"><span data-ic="search"></span></button>
     <a class="sync-top" id="sync-top" href="#/ajustes" hidden></a>
     <a data-nav="finanzas" href="#/finanzas" aria-label="Finanzas"><span data-ic="wallet"></span></a>
     <a data-nav="ajustes" href="#/ajustes" aria-label="Ajustes"><span data-ic="sliders"></span></a>
@@ -66,7 +69,9 @@
 <script src="js/views.js"></script>
 <script src="js/views2.js"></script>
 <script src="js/forms.js"></script>
-<script src="js/cloud-vercel.js"></script>
+<script src="js/extras.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/cloud-firebase.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/app.js"></script>
 </body>
